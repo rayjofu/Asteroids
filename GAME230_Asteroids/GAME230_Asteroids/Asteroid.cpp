@@ -70,8 +70,8 @@ string Asteroid::getTag() {
 	return tag;
 }
 
-void Asteroid::setTag(string t) {
-	tag = t;
+void Asteroid::setTag(string tag) {
+	this->tag = tag;
 }
 
 void Asteroid::checkCollisionWith(GameObject* obj) {
@@ -88,18 +88,15 @@ void Asteroid::checkCollisionWith(GameObject* obj) {
 		}
 		
 		if (obj->getTag() == "spaceship") {
-			Spaceship* ship = (Spaceship*)obj;
+			((Spaceship*)obj)->setEnabled(false);
+			((Spaceship*)obj)->setLives(((Spaceship*)obj)->getLives() - 1);
+			((Spaceship*)obj)->setFillColor(Color::Red);
 			cout << "asteroid collided into ship" << endl;
-			ship->setFillColor(Color::Green);
-			ship->setLives(ship->getLives() - 1);
-			ship->setEnabled(false);
 		}
 		else if (obj->getTag() == "laser") {
-			Laser* laser = (Laser*)obj;
-			cout << "asteroid collided into laser" << endl;
-			laser->setEnabled(false);
-			this->setFillColor(Color::Green);
+			((Laser*)obj)->setEnabled(false);
 			this->enabled = false;
+			cout << "asteroid collided into laser" << endl;
 		}
 	}
 }

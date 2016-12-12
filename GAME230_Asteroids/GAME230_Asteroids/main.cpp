@@ -12,7 +12,7 @@ using namespace std;
 
 void add_asteroid(int size, Vector2f pos);
 void create_objects(int n);
-void delete_objects();
+void delete_asteroids();
 void update_state();
 void render_frame();
 
@@ -20,9 +20,7 @@ float dt;
 vector<GameObject*> objects;
 Spaceship* ship;
 BucketGrid grid;
-short state;
 float respawnTimer;
-short maxLasers;
 float laserTimer;
 short numAsteroids;
 short level;
@@ -33,41 +31,134 @@ RectangleShape separator;
 int score;
 Text score_text;
 Text lives_text;
+Text level_text;
 Font text_font;
+Texture texture_spaceship;
+Texture texture_spaceship2;
+bool booster;
+Texture texture_laser;
+Texture texture_asteroid;
+int lives;
+bool toggle_menu;
+RectangleShape menu;
+RectangleShape menu_bg;
+Text restart;
+Text text_exit;
+float menu_timer;
+bool gameover_flag;
+RectangleShape gameover_outline;
+RectangleShape gameover_bg;
+Text gameover;
+Text gameover_score;
+FloatRect bounds;
+int initial_lives;
 
 int main()
 {
 	srand(time(NULL));
 	initial_asteroids = 1;
-	state = 0;
 	level = 0;
 	respawnTimer = 0.f;
 	laserTimer = 0.5f;
-	maxLasers = 5;
 	score = 0;
+	lives = initial_lives = 3;
+	booster = true;
+	toggle_menu = false;
+	gameover_flag = false;
+	ship = NULL;
 
 	if (!text_font.loadFromFile("ARIALUNI.TTF")) {
 		cout << "File 'ARIALUNI.TFF' not found!" << endl;
 	}
-	score_text.setFont(text_font);
-	score_text.setString("0");
-	score_text.setOrigin(score_text.getLocalBounds().left + score_text.getLocalBounds().width, score_text.getLocalBounds().top);
-	score_text.setPosition(950, 1040);
-	score_text.setColor(Color::White);
+	if (!texture_spaceship.loadFromFile("spaceship.png")) {
+		cout << "File 'spaceship.png' not found!" << endl;
+	}
+	if (!texture_spaceship2.loadFromFile("spaceship2.png")) {
+		cout << "File 'spaceship2.png' not found!" << endl;
+	}
+	if (!texture_laser.loadFromFile("laser.png")) {
+		cout << "File 'laser.png' not found!" << endl;
+	}
+	if (!texture_asteroid.loadFromFile("asteroid.png")) {
+		cout << "File 'asteroid.png' not found!" << endl;
+	}
 
+	// menu
+	menu_bg.setSize(Vector2f(250.f, 200.f));
+	menu_bg.setOrigin(125.f, 100.f);
+	menu_bg.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2);
+	menu_bg.setFillColor(Color::Red);
+
+	menu.setSize(Vector2f(230.f, 180.f));
+	menu.setOrigin(115.f, 90.f);
+	menu.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2);
+	menu.setFillColor(Color::Black);
+
+	restart.setFont(text_font);
+	restart.setString("New Game [N]");
+	restart.setFillColor(Color::Green);
+	bounds = restart.getLocalBounds();
+	restart.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+	restart.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2 - 30);
 	
+	text_exit.setFont(text_font);
+	text_exit.setString("Exit [X]");
+	text_exit.setFillColor(Color::Yellow);
+	bounds = text_exit.getLocalBounds();
+	text_exit.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+	text_exit.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2 + 30);
+
+	gameover_outline.setSize(Vector2f(300.f, 200.f));
+	gameover_outline.setOrigin(150.f, 100.f);
+	gameover_outline.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2 - 220.f);
+	gameover_outline.setFillColor(Color::Red);
+
+	gameover_bg.setSize(Vector2f(280.f, 180.f));
+	gameover_bg.setOrigin(140.f, 90.f);
+	gameover_bg.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2 - 220.f);
+	gameover_bg.setFillColor(Color::Black);
+
+	gameover.setString("GAMEOVER!");
+	gameover.setFont(text_font);
+	gameover.setFillColor(Color::Yellow);
+	bounds = gameover.getLocalBounds();
+	gameover.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+	gameover.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2 - 250.f);
+
+	gameover_score.setString(to_string(score));
+	gameover_score.setFont(text_font);
+	gameover_score.setFillColor(Color::Magenta);
+	bounds = gameover_score.getLocalBounds();
+	gameover_score.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+	gameover_score.setPosition(window.getSize().x / 2, (window.getSize().y - window_offset) / 2 - 190.f);
+
+	menu_timer = 3.f;
 
 	create_objects(level + initial_asteroids);
-
-	lives_text.setFont(text_font);
-	lives_text.setString("Lives: x" + to_string(ship->getLives()));
-//	lives_text.setOrigin(lives_text.getLocalBounds().left + lives_text.getLocalBounds().width, lives_text.getLocalBounds().top);
-	lives_text.setPosition(1, 1040);
-	lives_text.setColor(Color::White);
 
 	separator = RectangleShape();
 	separator.setSize(Vector2f(window.getSize().x, 1.f));
 	separator.setPosition(0.f, 1000.f);
+
+	lives_text.setFont(text_font);
+	lives_text.setString("Lives: x" + to_string(ship->getLives()));
+	bounds = lives_text.getLocalBounds();
+	lives_text.setOrigin(0, bounds.top + bounds.height/2.f);
+	lives_text.setPosition(50, 1050);
+	lives_text.setColor(Color::Blue);
+
+	level_text.setFont(text_font);
+	level_text.setString("Level " + to_string(level));
+	level_text.setOrigin(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+	level_text.setPosition(window.getSize().x / 2.f, 1050);
+	level_text.setColor(Color::Green);
+
+	score_text.setFont(text_font);
+	score_text.setString("0");
+	bounds = score_text.getLocalBounds();
+	score_text.setOrigin(bounds.left + bounds.width, bounds.top + bounds.height / 2.f);
+	score_text.setPosition(900, 1050);
+	score_text.setColor(Color::Magenta);	
 	
 	Clock clock;
 
@@ -85,7 +176,8 @@ int main()
 		render_frame();
 	}
 
-	delete_objects();
+	delete_asteroids();
+	delete ship;
 	return 0;
 }
 
@@ -97,6 +189,7 @@ void add_asteroid(int size, Vector2f pos) {
 	asteroid->setRadius(radius);
 	asteroid->setOrigin(radius, radius);
 	asteroid->setFillColor(Color::Yellow);
+	asteroid->setTexture(&texture_asteroid);
 	asteroid->setPosition(pos);
 
 	int signX, signY;
@@ -112,19 +205,22 @@ void add_asteroid(int size, Vector2f pos) {
 }
 
 void create_objects(int n) {
-	delete_objects();
-	
-	float radius = 30.f;
-	ship = new Spaceship("spaceship");
-	ship->setLives(3);
-	ship->setRadius(radius);
-	ship->setOrigin(radius, radius);
-	ship->setFillColor(Color(0, 0, 255, 255));
-	ship->setPosition(Vector2f(window.getSize().x / 2, (window.getSize().y - window_offset) / 2));
-	ship->setSpeed(300.f);
-	ship->setVelocity(Vector2f(0.f, 0.f));
-	objects.push_back(ship);
-	grid.bucket_add(grid.getBucket(ship->getCenter()), ship);
+	delete_asteroids();
+
+	if (ship == NULL) {
+		float radius = 30.f;
+		ship = new Spaceship("spaceship");
+		ship->setLives(lives);
+		ship->setRadius(radius);
+		ship->setOrigin(radius, radius);
+		ship->setFillColor(Color::White);
+		ship->setPosition(Vector2f(window.getSize().x / 2, (window.getSize().y - window_offset) / 2));
+		ship->setSpeed(300.f);
+		ship->setVelocity(Vector2f(0.f, 0.f));
+		ship->setTexture(&texture_spaceship);
+		objects.push_back(ship);
+		grid.bucket_add(grid.getBucket(ship->getCenter()), ship);
+	}
 
 	int randX, randY;
 	for (int i = 0; i < n; ++i) {
@@ -132,8 +228,8 @@ void create_objects(int n) {
 		randY = rand() % (window.getSize().y - window_offset);
 		
 		// make sure asteroid does not spawn on ship
-		while ((window.getSize().x / 2 - randX) * (window.getSize().x / 2 - randX) +
-			(window.getSize().y / 2 - randY) * (window.getSize().y / 2 - randY) < 90 * 90) {
+		while ((ship->getPosition().x - randX) * (ship->getPosition().x - randX) +
+			(ship->getPosition().y - randY) * (ship->getPosition().y - randY) < 200 * 200) {
 			randX = rand() % window.getSize().x;
 			randY = rand() % (window.getSize().y - window_offset);
 		}
@@ -144,17 +240,60 @@ void create_objects(int n) {
 	numAsteroids = n;
 }
 
-void delete_objects() {
-	for (GameObject* obj : objects) {
+void delete_asteroids() {
+	for (vector<GameObject*>::iterator it = objects.begin(); it != objects.end();) {
+		GameObject* obj = (*it);
+		if (obj->getTag() == "spaceship") {
+			++it;
+			continue;
+		}
 		grid.bucket_remove(grid.getBucket(obj->getCenter()), obj);
+		it = objects.erase(remove(objects.begin(), objects.end(), obj), objects.end());
 		delete obj;
 	}
-	objects.clear();
 }
 
 void update_state() {
+	menu_timer += dt;
+	if (Keyboard::isKeyPressed(Keyboard::Escape)) {
+		if (menu_timer > 0.2f) {
+			toggle_menu = !toggle_menu;
+			menu_timer = 0;
+		}
+	}
+
+	if (toggle_menu) {
+		if (Keyboard::isKeyPressed(Keyboard::N)) {
+			level = 0;
+			level_text.setString("Level " + to_string(level));
+			lives = initial_lives;
+			lives_text.setString("Lives: x" + to_string(lives));
+			ship->setLives(lives);
+			ship->setPosition(window.getSize().x / 2.f, (window.getSize().y - window_offset)/2.f);
+			ship->setVelocity(Vector2f(0.f, 0.f));
+			ship->setFillColor(Color::White);
+			score = 0;
+			score_text.setString(to_string(score));
+			create_objects(level + initial_asteroids);
+			gameover_flag = false;
+			toggle_menu = false;
+		}
+		if (Keyboard::isKeyPressed(Keyboard::X)) {
+			window.close();
+		}
+		dt = 0.f;
+		return;
+	}
+
 	if (Keyboard::isKeyPressed(Keyboard::W) || Keyboard::isKeyPressed(Keyboard::Up)) {
 		ship->handleInput(Keyboard::Up, dt);
+		if (booster) {
+			ship->setTexture(&texture_spaceship2);
+		}
+		else {
+			ship->setTexture(&texture_spaceship);
+		}
+		booster = !booster;
 	}
 	if (Keyboard::isKeyPressed(Keyboard::A) || Keyboard::isKeyPressed(Keyboard::Left)) {
 		ship->handleInput(Keyboard::Left, dt);
@@ -168,9 +307,11 @@ void update_state() {
 		if (laserTimer > 0.3f) {
 			Laser* laser = new Laser("laser");
 			laser->setRadius(10.f);
-			laser->setSpeed(900.f);
+			laser->setSpeed(700.f);
 			laser->setOrigin(laser->getRadius(), laser->getRadius());
 			laser->setPosition(ship->getPosition());
+			laser->setRotation(ship->getRotation());
+			laser->setTexture(&texture_laser);
 			Vector2f vel = Vector2f(sin(ship->getRotation() * 3.14 / 180), -cos(ship->getRotation() * 3.14 / 180));
 			laser->setVelocity(vel);
 			objects.push_back(laser);
@@ -235,20 +376,28 @@ void update_state() {
 	}
 
 	if (ship->getLives() < 0) {
-		
+		ship->setFillColor(Color::Black);
+		gameover_score.setString(to_string(score));
+		bounds = gameover_score.getLocalBounds();
+		gameover_score.setOrigin(bounds.left + bounds.width/2.f, bounds.top + bounds.height/2.f);
+
+		gameover_flag = true;
+		toggle_menu = true;
 	}
 	else if (numAsteroids == 0) {
 		cout << "level cleared" << endl;
 		create_objects(++level + initial_asteroids);
+		level_text.setString("Level " + to_string(level));
 	}
 	else if (!ship->isEnabled()) {
-		lives_text.setString("Lives: x" + to_string(ship->getLives()));
+		lives = ship->getLives();
+		lives_text.setString("Lives: x" + to_string(lives));
 		if (respawnTimer < 3.f) {
 			respawnTimer += dt;
 		}
 		else {
 			respawnTimer = 0.f;
-			ship->setFillColor(Color::Blue);
+			ship->setFillColor(Color::White);
 			ship->setEnabled(true);
 		}
 	}
@@ -259,10 +408,26 @@ void render_frame() {
 
 	window.draw(separator);
 	window.draw(lives_text);
+	window.draw(level_text);
 	window.draw(score_text);
 	for (vector<GameObject*>::iterator it = objects.begin(); it != objects.end();) {
 		(*it)->draw(window);
 		++it;
+	}
+
+
+	if (gameover_flag) {
+		window.draw(gameover_outline);
+		window.draw(gameover_bg);
+		window.draw(gameover);
+		window.draw(gameover_score);
+	}
+	
+	if (toggle_menu) {
+		window.draw(menu_bg);
+		window.draw(menu);
+		window.draw(restart);
+		window.draw(text_exit);
 	}
 
 	window.display();
