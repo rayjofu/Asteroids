@@ -1,4 +1,5 @@
 #include <SFML/Graphics.hpp>
+#include <SFML/Audio.hpp>
 #include "Asteroid.h"
 #include <vector>
 #include <random>
@@ -6,11 +7,13 @@
 #include "BucketGrid.h"
 #include "Spaceship.h"
 #include "Laser.h"
+#include "Powerup.h"
 
 using namespace sf;
 using namespace std;
 
-void add_asteroid(int size, Vector2f pos);
+void add_asteroid(int size, Vector2f pos, int type);
+void add_powerup(int type, Vector2f pos);
 void create_objects(int n);
 void delete_asteroids();
 void update_state();
@@ -38,6 +41,7 @@ Texture texture_spaceship2;
 bool booster;
 Texture texture_laser;
 Texture texture_asteroid;
+Texture texture_asteroid2;
 int lives;
 bool toggle_menu;
 RectangleShape menu;
@@ -52,11 +56,26 @@ Text gameover;
 Text gameover_score;
 FloatRect bounds;
 int initial_lives;
+Texture texture_star;
+Texture texture_shield;
+Texture texture_laser_upgrade;
+int laser_speed;
+bool laser_upgrade;
+Sound fire;
+Sound smallExplosion;
+Sound mediumExplosion;
+Sound thrust;
+Sound victory;
+SoundBuffer fire_buffer;
+SoundBuffer smallExplosion_buffer;
+SoundBuffer mediumExplosion_buffer;
+SoundBuffer thrust_buffer;
+SoundBuffer victory_buffer;
 
 int main()
 {
 	srand(time(NULL));
-	initial_asteroids = 1;
+	initial_asteroids = 2;
 	level = 0;
 	respawnTimer = 0.f;
 	laserTimer = 0.5f;
@@ -66,6 +85,8 @@ int main()
 	toggle_menu = false;
 	gameover_flag = false;
 	ship = NULL;
+	laser_speed = 700.f;
+	laser_upgrade = false;
 
 	if (!text_font.loadFromFile("ARIALUNI.TTF")) {
 		cout << "File 'ARIALUNI.TFF' not found!" << endl;
@@ -82,6 +103,38 @@ int main()
 	if (!texture_asteroid.loadFromFile("asteroid.png")) {
 		cout << "File 'asteroid.png' not found!" << endl;
 	}
+	if (!texture_asteroid2.loadFromFile("asteroid2.png")) {
+		cout << "File 'asteroid2.png' not found!" << endl;
+	}
+	if (!texture_star.loadFromFile("star.png")) {
+		cout << "File 'star.png' not found!" << endl;
+	}
+	if (!texture_shield.loadFromFile("shield.png")) {
+		cout << "File 'shield.png' not found!" << endl;
+	}
+	if (!texture_laser_upgrade.loadFromFile("laser_upgrade.png")) {
+		cout << "File 'laser_upgrade.png' not found!" << endl;
+	}
+	if (!fire_buffer.loadFromFile("fire.wav")) {
+		cout << "File 'fire.wav' not found!" << endl;
+	}
+	if (!smallExplosion_buffer.loadFromFile("bangSmall.wav")) {
+		cout << "File 'bangSmall.wav' not found!" << endl;
+	}
+	if (!mediumExplosion_buffer.loadFromFile("bangMedium.wav")) {
+		cout << "File 'bangMedium.wav' not found!" << endl;
+	}
+	if (!thrust_buffer.loadFromFile("thrust.wav")) {
+		cout << "File 'thrust.wav' not found!" << endl;
+	}
+	if (!victory_buffer.loadFromFile("level_complete.wav")) {
+		cout << "File 'level_complete.wav' not found!" << endl;
+	}
+	fire.setBuffer(fire_buffer);
+	smallExplosion.setBuffer(smallExplosion_buffer);
+	mediumExplosion.setBuffer(mediumExplosion_buffer);
+	thrust.setBuffer(thrust_buffer);
+	victory.setBuffer(victory_buffer);
 
 	// menu
 	menu_bg.setSize(Vector2f(250.f, 200.f));
@@ -181,16 +234,48 @@ int main()
 	return 0;
 }
 
-void add_asteroid(int size, Vector2f pos) {
+void add_powerup(int type, Vector2f pos) {
+	Powerup* powerup = new Powerup("powerup");
+	powerup->setType(type);
+	powerup->setPosition(pos);
+	powerup->setRadius(20.f);
+	powerup->setOrigin(20.f, 20.f);
+
+	// shield
+	if (type == 1) {
+		powerup->setTexture(&texture_shield);
+	}
+	// invincibility
+	else if (type == 2) {
+		powerup->setTexture(&texture_star);
+	}
+	// laser upgrade
+	else if (type == 3) {
+		powerup->setTexture(&texture_laser_upgrade);
+	}
+
+	objects.push_back(powerup);
+	grid.bucket_add(grid.getBucket(powerup->getCenter()), powerup);
+}
+
+void add_asteroid(int size, Vector2f pos, int type) {
 	Asteroid* asteroid = new Asteroid("asteroid");
 	asteroid->setSize(size);
 
 	int radius = 15.f * pow(2, size);
 	asteroid->setRadius(radius);
 	asteroid->setOrigin(radius, radius);
-	asteroid->setFillColor(Color::Yellow);
-	asteroid->setTexture(&texture_asteroid);
 	asteroid->setPosition(pos);
+	asteroid->setType(type);
+
+	if (type == 2) {
+		asteroid->setLife(2);
+		asteroid->setTexture(&texture_asteroid2);
+	}
+	else {
+		asteroid->setLife(1);
+		asteroid->setTexture(&texture_asteroid);
+	}
 
 	int signX, signY;
 	signX = rand() % 2 + 1;
@@ -218,6 +303,7 @@ void create_objects(int n) {
 		ship->setSpeed(300.f);
 		ship->setVelocity(Vector2f(0.f, 0.f));
 		ship->setTexture(&texture_spaceship);
+		ship->setPowerup(0);
 		objects.push_back(ship);
 		grid.bucket_add(grid.getBucket(ship->getCenter()), ship);
 	}
@@ -234,7 +320,12 @@ void create_objects(int n) {
 			randY = rand() % (window.getSize().y - window_offset);
 		}
 //		add_asteroid(rand() % 3, Vector2f(randX, randY));
-		add_asteroid(2, Vector2f(randX, randY));
+		if (i % 5 == 0) {
+			add_asteroid(2, Vector2f(randX, randY), 2);
+		}
+		else {
+			add_asteroid(2, Vector2f(randX, randY), 1);
+		}
 	}
 
 	numAsteroids = n;
@@ -248,7 +339,7 @@ void delete_asteroids() {
 			continue;
 		}
 		grid.bucket_remove(grid.getBucket(obj->getCenter()), obj);
-		it = objects.erase(remove(objects.begin(), objects.end(), obj), objects.end());
+		it = objects.erase(it);
 		delete obj;
 	}
 }
@@ -286,6 +377,9 @@ void update_state() {
 	}
 
 	if (Keyboard::isKeyPressed(Keyboard::W) || Keyboard::isKeyPressed(Keyboard::Up)) {
+		if (thrust.getStatus() != Sound::Status::Playing) {
+			thrust.play();
+		}
 		ship->handleInput(Keyboard::Up, dt);
 		if (booster) {
 			ship->setTexture(&texture_spaceship2);
@@ -303,11 +397,14 @@ void update_state() {
 	}
 
 	laserTimer += dt;
-	if (ship->isEnabled() && Keyboard::isKeyPressed(Keyboard::Space)) {
-		if (laserTimer > 0.3f) {
+	if ((ship->isEnabled() || !ship->isEnabled() && ship->getPowerup() == 2 || !ship->isEnabled() && ship->getPowerup() == 1) && Keyboard::isKeyPressed(Keyboard::Space)) {
+		if (!laser_upgrade && laserTimer > 0.3f || laser_upgrade && laserTimer > 0.15f) {
+			if (fire.getStatus() != Sound::Status::Playing) {
+				fire.play();
+			}
 			Laser* laser = new Laser("laser");
 			laser->setRadius(10.f);
-			laser->setSpeed(700.f);
+			laser->setSpeed(laser_speed);
 			laser->setOrigin(laser->getRadius(), laser->getRadius());
 			laser->setPosition(ship->getPosition());
 			laser->setRotation(ship->getRotation());
@@ -331,12 +428,13 @@ void update_state() {
 				continue;
 			}
 
-			if (obj->getTag() == "asteroid") {
+			else if (obj->getTag() == "asteroid") {
 				Asteroid* asteroid = (Asteroid*)obj;
 				
 				score += 100;
 				score_text.setString(to_string(score));
 				if (asteroid->getSize() == 0) {
+					smallExplosion.play();
 					it = objects.erase(remove(objects.begin(), objects.end(), obj), objects.end());
 					grid.bucket_remove(grid.getBucket(obj->getCenter()), obj);
 					--numAsteroids;
@@ -344,22 +442,56 @@ void update_state() {
 					continue;
 				}
 
-				Vector2f pos = asteroid->getPosition();
-				pos.x -= asteroid->getRadius() / 2 - 1;
-				add_asteroid(asteroid->getSize() - 1, pos);
+				mediumExplosion.play();
 
-				pos = asteroid->getPosition();
-				pos.x += asteroid->getRadius() / 2 + 1;
-				add_asteroid(asteroid->getSize() - 1, pos);
+				Vector2f pos = asteroid->getPosition();
+				int type = asteroid->getType();
+				int size = asteroid->getSize();
+				int radius = asteroid->getRadius();
+
+				Vector2f newPos;
+				newPos = Vector2f(pos.x - radius / 2 - 1, pos.y);
+				pos.x -= radius / 2 - 1;
+				add_asteroid(size - 1, newPos, type);
+
+				newPos = Vector2f(pos.x + radius / 2 + 1, pos.y);
+				pos.x += radius / 2 + 1;
+				add_asteroid(size - 1, newPos, type);
+
+				int random = rand() % 10 + 1;
+				if (random == 1 || random == 2 || random == 3) {
+					add_powerup(random, pos);
+				}
 				
 				++numAsteroids;
 
 				it = objects.erase(remove(objects.begin(), objects.end(), obj), objects.end());
 				grid.bucket_remove(grid.getBucket(obj->getCenter()), obj);
 				delete obj;
+				
 				continue;
 			}
 
+			else if (obj->getTag() == "powerup") {
+				Powerup* powerup = ((Powerup*)obj);
+				if (powerup->getType() == 1) {
+					ship->setFillColor(Color::Green);
+					ship->setPowerup(1);
+				}
+				else if (powerup->getType() == 2) {
+					ship->setFillColor(Color::Yellow);
+					ship->setPowerup(2);
+				}
+				else if (powerup->getType() == 3) {
+					laser_upgrade = true;
+					ship->setPowerup(3);
+				}
+
+				it = objects.erase(remove(objects.begin(), objects.end(), obj), objects.end());
+				grid.bucket_remove(grid.getBucket(obj->getCenter()), obj);
+				delete obj;
+				continue;
+			}
 		}
 
 		Vector2i curBucket = grid.getBucket(obj->getCenter());
@@ -385,20 +517,26 @@ void update_state() {
 		toggle_menu = true;
 	}
 	else if (numAsteroids == 0) {
+		victory.play();
 		cout << "level cleared" << endl;
 		create_objects(++level + initial_asteroids);
 		level_text.setString("Level " + to_string(level));
 	}
 	else if (!ship->isEnabled()) {
-		lives = ship->getLives();
-		lives_text.setString("Lives: x" + to_string(lives));
-		if (respawnTimer < 3.f) {
+		if (ship->getPowerup() == 0 || ship->getPowerup() == 3) {
+			lives = ship->getLives();
+			lives_text.setString("Lives: x" + to_string(lives));
+			ship->setPowerup(0);
+		}
+
+		if (ship->getPowerup() != 2 && respawnTimer < 3.f || ship->getPowerup() == 2 && respawnTimer < 6.f) {
 			respawnTimer += dt;
 		}
 		else {
 			respawnTimer = 0.f;
 			ship->setFillColor(Color::White);
 			ship->setEnabled(true);
+			ship->setPowerup(0);
 		}
 	}
 }
@@ -410,9 +548,8 @@ void render_frame() {
 	window.draw(lives_text);
 	window.draw(level_text);
 	window.draw(score_text);
-	for (vector<GameObject*>::iterator it = objects.begin(); it != objects.end();) {
+	for (vector<GameObject*>::iterator it = objects.begin(); it != objects.end(); ++it) {
 		(*it)->draw(window);
-		++it;
 	}
 
 
