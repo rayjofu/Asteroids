@@ -1,0 +1,5 @@
+﻿  Asteroid.cpp
+c:\users\rafu\documents\game230_asteroids\game230_asteroids-master\game230_asteroids\game230_asteroids\asteroid.cpp(58): warning C4244: '=': conversion from 'unsigned int' to 'float', possible loss of data
+c:\users\rafu\documents\game230_asteroids\game230_asteroids-master\game230_asteroids\game230_asteroids\asteroid.cpp(64): warning C4244: '=': conversion from 'unsigned int' to 'float', possible loss of data
+  GAME230_Asteroids.vcxproj -> C:\Users\rafu\Documents\GAME230_Asteroids\GAME230_Asteroids-master\GAME230_Asteroids\Debug\GAME230_Asteroids.exe
+  GAME230_Asteroids.vcxproj -> C:\Users\rafu\Documents\GAME230_Asteroids\GAME230_Asteroids-master\GAME230_Asteroids\Debug\GAME230_Asteroids.pdb (Full PDB)
